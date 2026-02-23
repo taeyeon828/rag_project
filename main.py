@@ -23,7 +23,6 @@ CHUNKS_JSONL_PATH = os.path.join(PROCESSED_CHUNKS_DIR, "chunks.jsonl")
 
 
 import streamlit as st
-import pyodbc
 import pandas as pd
 import easyocr
 import numpy as np

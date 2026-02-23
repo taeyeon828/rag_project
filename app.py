@@ -12,6 +12,7 @@ import streamlit as st
 from sqlalchemy import create_engine
 
 DB_URL = st.secrets["DB_URL"]
+engine = create_engine(st.secrets["DB_URL"])
 if "engine" not in st.session_state:
     st.session_state["engine"] = create_engine(DB_URL)
 

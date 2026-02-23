@@ -1,6 +1,8 @@
 streamlit
 pandas
-numpy
-python-dotenv
 SQLAlchemy
 psycopg2-binary
+langchain
+langchain-community
+chromadb
+google-generativeai
