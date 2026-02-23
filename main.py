@@ -24,7 +24,6 @@ CHUNKS_JSONL_PATH = os.path.join(PROCESSED_CHUNKS_DIR, "chunks.jsonl")
 
 import streamlit as st
 import pandas as pd
-import easyocr
 import numpy as np
 import cv2
 import json
@@ -173,6 +172,7 @@ def _imread_unicode(path: str):
 
 def load_all_images(img_dir: str) -> list[Document]:
     image_docs: list[Document] = []
+    import easyocr
     reader = easyocr.Reader(["ko", "en"])
 
     img_paths = []
