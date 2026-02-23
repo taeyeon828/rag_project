@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: rag-postgres
+    security_opt:
+    - seccomp:unconfined
+    environment:
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: ragpass
+      POSTGRES_DB: ragdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d ragdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  adminer:
+    image: adminer:latest
+    container_name: rag-adminer
+    ports:
+      - "8088:8080"
+    depends_on:
+      - postgres
+
+volumes:
+  pg_data:
