@@ -8,10 +8,12 @@ from main import retrieve_context, ask_rag, llm
 from dotenv import load_dotenv
 load_dotenv()
 
-if "engine" not in st.session_state:
-    st.session_state["engine"] = create_engine(os.getenv("DB_URL"))
+import streamlit as st
+from sqlalchemy import create_engine
 
-engine = st.session_state["engine"]
+DB_URL = st.secrets["DB_URL"]
+if "engine" not in st.session_state:
+    st.session_state["engine"] = create_engine(DB_URL)
 
 
 st.set_page_config(page_title="스마트공장 챗봇", layout="wide")
