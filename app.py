@@ -9,9 +9,7 @@ else:
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
-from main import ask_rag, retrieve_context
 from db_agent.db_agent import get_db_context
-from main import retrieve_context, ask_rag, llm
 from dotenv import load_dotenv
 load_dotenv()
 from sqlalchemy import create_engine

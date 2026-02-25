@@ -2,7 +2,6 @@ import os
 from typing import List, Dict, Any
 
 def retrieve_context(user_query: str) -> str:
-    # Cloud 데모에서는 문서 벡터 검색을 잠깐 끄고, DB 컨텍스트만 사용(또는 빈 문자열)
     return ""
 
 def ask_rag(user_query: str, docs_or_context, profile: dict | None = None) -> str:
