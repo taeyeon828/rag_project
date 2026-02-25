@@ -134,14 +134,26 @@ if user_text:
 
         # 3) 근거(발췌문/출처) 출력
         with st.expander("근거(발췌문/출처) 보기"):
-            for i, d in enumerate(pairs, start=1):
-                if isinstance(d, tuple):
-                    d = d[0]
-                meta = d.metadata or {}
-                source = meta.get("source_file", meta.get("source", "unknown"))
-                st.markdown(f"**[{i}]** {source}")
-                st.write(d.page_content[:800])
+            if isinstance(pairs, list) and len(pairs) > 0:
+                for i, d in enumerate(pairs, start=1):
+                    if isinstance(d, tuple):
+                        d = d[0]
+                    
+                    if hasattr(d, "metadata") and hasattr(d, "page_content"):
+                        meta = d.metadata or {}
+                        source = meta.get("source_file", meta.get("source", "unknown"))
+                        st.markdown(f"**[{i}]** {source}")
+                        st.write(d.page_content[:800])
+                    
+                    elif isinstance(d, dict):
+                        source = d.get("source", "unknown")
+                        st.markdown(f"**[{i}]** {source}")
+                        st.write(d.get("text", "")[:800])
+                        
+                    else:
+                        st.write(f"(지원하지 않는 타입: {type(d)})")
+            else:
+                st.write("(문서 검색 결과 없음)")
 
-                
 
     st.session_state["messages"].append({"role": "assistant", "content": answer})
