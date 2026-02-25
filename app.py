@@ -109,16 +109,21 @@ if user_text:
             llm = get_llm()
 
             db_result = get_db_context(user_text, llm, engine)
+            st.session_state["db_result"] = db_result
             db_ctx = ""
-            if db_result["error"] is None and db_result["db_context_text"]:
+            if db_result.get("error") is None and db_result.get("db_context_text"):
                 db_ctx = db_result["db_context_text"]
+                
+            with st.expander("디버그: DB 결과 확인"):
+                st.write(db_result)
                 
             answer = ask_rag(
                 user_text,
                 pairs,
                 profile=st.session_state.get("profile", {}),
-                db_context=db_ctx
-    )
+                db_context=db_ctx,
+                )
+    
         st.markdown(answer)
         
         if "db_result" in st.session_state:
@@ -136,5 +141,7 @@ if user_text:
                 source = meta.get("source_file", meta.get("source", "unknown"))
                 st.markdown(f"**[{i}]** {source}")
                 st.write(d.page_content[:800])
+
+                
 
     st.session_state["messages"].append({"role": "assistant", "content": answer})

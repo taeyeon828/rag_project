@@ -238,27 +238,43 @@ print("all_docs:", len(all_docs))
 # =====================================
 # [Step 3] 임베딩 &  DB 만들기
 # =====================================
-@st.cache_resource(show_spinner="벡터 DB 로드/생성 중...")
+DEPLOY_MODE = os.getenv("DEPLOY_MODE", "cloud")
+
+@st.cache_resource(show_spinner="벡터 DB 로드 중...")
 def load_vectorstore():
-    embeddings = HuggingFaceBgeEmbeddings (
-    model_name="intfloat/multilingual-e5-small",
-    model_kwargs = {"device":"cpu"},
-    encode_kwargs = {"normalize_embeddings": True}
+    embeddings = HuggingFaceBgeEmbeddings(
+        model_name="intfloat/multilingual-e5-small",
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"normalize_embeddings": True},
     )
 
+    # ✅ Cloud에선 '반드시' 기존 DB만 로드 (생성 금지)
+    if DEPLOY_MODE == "cloud":
+        if not (os.path.exists(DB_PATH_PROCESSED) and os.listdir(DB_PATH_PROCESSED)):
+            raise RuntimeError(
+                f"[Cloud] Vector DB not found at {DB_PATH_PROCESSED}. "
+                "로컬에서 전처리/임베딩 후 db 폴더를 GitHub에 포함시켜야 합니다."
+            )
+        return Chroma(
+            persist_directory=DB_PATH_PROCESSED,
+            embedding_function=embeddings,
+            collection_name="smart_factory_processed",
+        )
+
+    # ✅ 로컬에서는 없으면 생성 허용
     if os.path.exists(DB_PATH_PROCESSED) and os.listdir(DB_PATH_PROCESSED):
         return Chroma(
             persist_directory=DB_PATH_PROCESSED,
             embedding_function=embeddings,
             collection_name="smart_factory_processed",
         )
-    
+
     vectorstore = Chroma.from_documents(
-        documents=chunks,
-        embedding = embeddings,
-        collection_name = 'smart_factory_processed',
-        persist_directory = DB_PATH_PROCESSED,
-        collection_metadata = {'hnsw:space': 'cosine'}
+        documents=chunks,  # 로컬에서만 생성
+        embedding=embeddings,
+        collection_name="smart_factory_processed",
+        persist_directory=DB_PATH_PROCESSED,
+        collection_metadata={"hnsw:space": "cosine"},
     )
     vectorstore.persist()
     return vectorstore

@@ -1,9 +1,7 @@
 __pycache__/
 *.pyc
 .env
-db/
 chromadb/
 vectorstore/
-*.sqlite
 *.db
 .DS_Store
