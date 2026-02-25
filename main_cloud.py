@@ -4,8 +4,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
-from prompts import build_prompt
-prompt = build_prompt() 
+from prompts import build_prompt 
 
 DOCS_DIR = Path("data") 
 
@@ -73,21 +72,7 @@ def ask_rag(user_query: str, pairs, profile=None, db_context: str = "") -> str:
     if isinstance(pairs, list) and pairs:
         doc_ctx = "\n\n".join([f"[{p['source']}]\n{p['snippet']}" for p in pairs])
 
-    prompt = f"""
-너는 스마트공장 컨설턴트 AI다.
-아래 컨텍스트(DB/문서)를 참고해서 답해라.
-컨텍스트에 근거가 없으면 '근거가 부족하다'고 말하고, 어떤 데이터가 더 필요한지 2~3개 제안해라.
+    prompt = build_prompt()
 
-[기업 프로필]
-{profile}
 
-[DB 컨텍스트]
-{db_context}
-
-[문서 컨텍스트]
-{doc_ctx}
-
-[질문]
-{user_query}
-"""
     return llm.invoke(prompt).content
