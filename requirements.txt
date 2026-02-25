@@ -3,6 +3,5 @@ pandas
 SQLAlchemy
 psycopg2-binary
 langchain
-langchain-community
-chromadb
-google-generativeai
+langchain-google-genai
+python-dotenv

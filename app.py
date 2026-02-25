@@ -1,4 +1,11 @@
 import os
+
+DEPLOY_MODE = os.getenv("DEPLOY_MODE", "cloud") 
+if DEPLOY_MODE == "cloud":
+    from main_cloud import ask_rag, retrieve_context
+else:
+    from main import ask_rag, retrieve_context 
+
 import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine
@@ -7,14 +14,14 @@ from db_agent.db_agent import get_db_context
 from main import retrieve_context, ask_rag, llm
 from dotenv import load_dotenv
 load_dotenv()
-
-import streamlit as st
 from sqlalchemy import create_engine
 
-DB_URL = st.secrets["DB_URL"]
-engine = create_engine(st.secrets["DB_URL"])
-if "engine" not in st.session_state:
-    st.session_state["engine"] = create_engine(DB_URL)
+@st.cache_resource
+def get_engine():
+    from sqlalchemy import create_engine
+    return create_engine(st.secrets["DB_URL"])
+
+engine = get_engine()
 
 
 st.set_page_config(page_title="스마트공장 챗봇", layout="wide")
