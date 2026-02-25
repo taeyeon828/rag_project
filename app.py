@@ -11,8 +11,8 @@ import pandas as pd
 from sqlalchemy import create_engine
 from db_agent.db_agent import get_db_context
 from dotenv import load_dotenv
-load_dotenv()
-from sqlalchemy import create_engine
+if DEPLOY_MODE != "cloud":
+    load_dotenv()
 
 @st.cache_resource
 def get_engine():
@@ -98,12 +98,22 @@ if user_text:
             pairs = retrieve_context(user_text)
 
             # ✅ DB Agent 실행
+            from langchain_google_genai import ChatGoogleGenerativeAI
+            @st.cache_resource
+            def get_llm():
+                return ChatGoogleGenerativeAI(
+                    model="gemini-2.5-flash",
+                    google_api_key=st.secrets["GEMINI_API_KEY"],
+                    temperature=0.2,
+                    )
+            llm = get_llm()
+
             db_result = get_db_context(user_text, llm, engine)
             db_ctx = ""
             if db_result["error"] is None and db_result["db_context_text"]:
                 db_ctx = db_result["db_context_text"]
                 
-            answer, context, mode = ask_rag(
+            answer = ask_rag(
                 user_text,
                 pairs,
                 profile=st.session_state.get("profile", {}),
