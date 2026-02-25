@@ -72,7 +72,14 @@ def ask_rag(user_query: str, pairs, profile=None, db_context: str = "") -> str:
     if isinstance(pairs, list) and pairs:
         doc_ctx = "\n\n".join([f"[{p['source']}]\n{p['snippet']}" for p in pairs])
 
-    prompt = build_prompt()
+    context = f"""[DB 컨텍스트]
+{db_context}
+
+[문서 컨텍스트]
+{doc_ctx}
+"""
+
+    prompt = build_prompt(query=user_query, context=context, profile=profile)
 
 
     return llm.invoke(prompt).content
