@@ -114,8 +114,6 @@ if user_text:
             if db_result.get("error") is None and db_result.get("db_context_text"):
                 db_ctx = db_result["db_context_text"]
                 
-            with st.expander("디버그: DB 결과 확인"):
-                st.write(db_result)
                 
             answer = ask_rag(
                 user_text,

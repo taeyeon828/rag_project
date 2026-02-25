@@ -4,6 +4,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 from langchain_google_genai import ChatGoogleGenerativeAI
+from prompts import build_prompt
+prompt = build_prompt() 
 
 DOCS_DIR = Path("data") 
 

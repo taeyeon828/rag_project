@@ -41,6 +41,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from collections import defaultdict
 from pathlib import Path
 from db_agent.db_agent import get_db_context
+from prompts import build_prompt
+prompt = build_prompt() 
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
