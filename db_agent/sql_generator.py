@@ -33,7 +33,6 @@ def llm_generate_sql(llm, prompt: str) -> Dict[str, Any]:
     resp = llm.invoke(prompt)
     text = resp.content.strip()
 
-    # 혹시 모델이 ```json ... ```로 감싸면 제거
     if text.startswith("```"):
         text = text.strip("`")
         text = text.replace("json", "", 1).strip()

@@ -20,18 +20,24 @@ PROCESSED_TEXT_DIR = os.path.join(PROCESSED_DIR, "text")
 PROCESSED_CHUNKS_DIR = os.path.join(PROCESSED_DIR, "chunks")
 CHUNKS_JSONL_PATH = os.path.join(PROCESSED_CHUNKS_DIR, "chunks.jsonl")
 
+# Preprocess
+REPORT_DIR = os.path.join(PROCESSED_DIR, "report")
+QUALITY_REPORT_PATH = os.path.join(REPORT_DIR, "quality_report.json")
+RAW_PDF_DIR = Path("data/raw/pdf")
+OUT_TEXT_DIR = Path("data/processed/text")
+OUT_CHUNKS_DIR = Path("data/processed/chunks")
+OUT_REPORT_DIR = Path("data/processed/report")
+
 
 
 import streamlit as st
-import pandas as pd
 import numpy as np
 import cv2
 import json
-import numpy as np
 import re
 from glob import glob
+from datetime import datetime
 from langchain_core.documents import Document
-from langchain_community.document_loaders import TextLoader
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
@@ -51,22 +57,6 @@ llm = ChatGoogleGenerativeAI(
 
 __all__ = ["retrieve_context", "ask_rag", "llm"]
 
-def analyze_docs(docs, name=""):
-    lengths = [len(d.page_content) for d in docs]
-    total_chunks = len(docs)
-    short_chunks = sum(l < 20 for l in lengths)
-    avg_length = np.mean(lengths) if lengths else 0
-
-    texts = [d.page_content.strip() for d in docs]
-    duplicates = len(texts) - len(set(texts))
-
-    print(f"\n📊 [{name}] 분석 결과")
-    print("-" * 30)
-    print(f"전체 청크 수: {total_chunks}")
-    print(f"20자 이하 청크 수: {short_chunks}")
-    print(f"평균 청크 길이: {avg_length:.2f}")
-    print(f"중복 청크 수: {duplicates}")
-
 
 # Gemini 설정
 # Mac: 터미널에서 export GEMINI_API_KEY="내가 발급받은 API 키"
@@ -76,6 +66,91 @@ def analyze_docs(docs, name=""):
 # =====================================
 # 데이터 처리 함수
 # =====================================
+def preprocess_pdfs_if_needed():
+    os.makedirs(PROCESSED_TEXT_DIR, exist_ok=True)
+    os.makedirs(PROCESSED_CHUNKS_DIR, exist_ok=True)
+    os.makedirs(REPORT_DIR, exist_ok=True)
+
+    if os.path.exists(CHUNKS_JSONL_PATH) and os.path.exists(QUALITY_REPORT_PATH):
+        return
+    
+    def clean_text(text: str) -> str:
+        if not text:
+            return ""
+        
+        text = text.replace("\ufeff", "")         
+        text = text.replace("\xa0", " ")        
+        text = re.sub(r"\s+", " ", text)           
+        text = text.strip()          
+        return text
+    
+    splitter = RecursiveCharacterTextSplitter(
+    chunk_size=400,
+    chunk_overlap=90,
+    separators=["\n\n", "\n", ". ", "다. ", " "]
+    )
+    
+    chunks_path = OUT_CHUNKS_DIR / "chunks.jsonl"
+    report = {
+    "generated_at": datetime.now().isoformat(timespec="seconds"),
+    "files": []
+    }
+    
+    with chunks_path.open("w", encoding="utf-8") as fout:
+        for pdf_path in RAW_PDF_DIR.glob("*.pdf"):
+            loader = PyPDFLoader(str(pdf_path))
+            pages = loader.load()
+            file_stat = {
+                "file": pdf_path.name,
+                "pages": len(pages),
+                "empty_pages": 0,
+                "chunks": 0
+        }
+            
+            file_text_dir = OUT_TEXT_DIR / pdf_path.stem
+            file_text_dir.mkdir(parents=True, exist_ok=True)
+
+            cleaned_pages = []
+            for i, doc in enumerate(pages, start=1):
+                raw = doc.page_content or ""
+                cleaned = clean_text(raw)
+            
+                if len(cleaned) < 10:
+                    file_stat["empty_pages"] += 1
+
+            (file_text_dir / f"page_{i:03d}.txt").write_text(cleaned, encoding="utf-8")
+            cleaned_pages.append((i, cleaned))
+
+            for page_no, text in cleaned_pages:
+                if not text:
+                    continue
+                docs = splitter.create_documents(
+                    [text],
+                    metadatas=[{
+                        "source_type": "pdf",
+                        "source": pdf_path.name,
+                        "page": page_no,
+                }]
+            )
+                for j, d in enumerate(docs, start=1):
+                    rec = {
+                        "chunk_id": f"{pdf_path.stem}_p{page_no:03d}_c{j:03d}",
+                        "text": d.page_content,
+                        **d.metadata,
+                        "char_len": len(d.page_content)
+                }
+                fout.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                file_stat["chunks"] += 1
+
+        report["files"].append(file_stat)
+
+    (OUT_REPORT_DIR / "quality_report.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=2),
+        encoding="utf-8"
+        )
+
+
+
 def load_processed_pdf_chunks(chunks_jsonl_path: str) -> list[Document]:
     docs: list[Document] = []
 
@@ -90,15 +165,13 @@ def load_processed_pdf_chunks(chunks_jsonl_path: str) -> list[Document]:
             if not text:
                 continue
 
-            # 전처리에서 만든 메타를 최대한 유지 + 네 메타 키와 호환되게 보강
             meta = {k: v for k, v in rec.items() if k not in ("text",)}
 
             meta.setdefault("source_type", "pdf")
             meta.setdefault("source_file", meta.get("source") or meta.get("source_file"))
-            meta.setdefault("source_path", meta.get("source_path"))  # 없으면 None
-            # page가 있으면 사람이 보는 페이지(page_human)도 만들기
+            meta.setdefault("source_path", meta.get("source_path")) 
             if "page" in meta and isinstance(meta["page"], int):
-                meta["page_human"] = meta["page"] + 1
+                meta["page_human"] = meta["page"]
 
             docs.append(Document(page_content=text, metadata=meta))
 
@@ -111,21 +184,21 @@ for f in rep["files"]:
 # CSV 데이터 전처리 
 def clean_csv_value(v: str) -> str:
     v = str(v)
-    v = v.replace("\ufeff", "")          # BOM 제거
-    v = v.strip()                        # 앞뒤 공백 제거
-    v = re.sub(r"\s+", " ", v)           # 연속 공백 정리
+    v = v.replace("\ufeff", "")          
+    v = v.strip()                        
+    v = re.sub(r"\s+", " ", v)           
     return v
 
 def load_all_csvs(csv_dir: str):
     docs = []
-    seen = set()  # 중복 row 제거용 
+    seen = set() 
 
     for csv_path in glob(os.path.join(csv_dir, "*.csv")):
         with open(csv_path, "r", encoding="cp949", errors="ignore") as f:
             reader = csv.DictReader(f)
             for idx, row in enumerate(reader, start=1):
 
-                # (1) row 값 정제: 공백/개행/중복 공백 등
+                # (1) row 값 정제
                 cleaned_row = {}
                 for k, v in row.items():
                     if not k:
@@ -133,16 +206,15 @@ def load_all_csvs(csv_dir: str):
                     if v is None:
                         continue
                     vv = clean_csv_value(v)
-                    if vv:  # 빈 값 제거
+                    if vv:  
                         cleaned_row[k] = vv
 
-                # 행 -> 텍스트
                 lines = [f"[{k}] {v}" for k, v in cleaned_row.items()]
                 text = "\n".join(lines).strip()
                 if not text:
                     continue
 
-                # (2) 중복 row 제거 (텍스트가 완전히 동일하면 스킵)
+                # (2) 중복 row 제거 
                 sig = (os.path.basename(csv_path), text)
                 if sig in seen:
                     continue
@@ -157,8 +229,6 @@ def load_all_csvs(csv_dir: str):
                     }
                 ))
     return docs
-
-
 
 # 이미지 텍스트화 
 def _imread_unicode(path: str):
@@ -209,14 +279,14 @@ def load_all_images(img_dir: str) -> list[Document]:
 # =====================================
 # [Step 1] 데이터 읽기 
 # =====================================
+preprocess_pdfs_if_needed()
+
 pdf_docs = load_processed_pdf_chunks(CHUNKS_JSONL_PATH)
 csv_docs = load_all_csvs(CSV_DIR)
 image_docs = load_all_images(IMG_DIR)
 
 all_docs = pdf_docs + csv_docs + image_docs
-analyze_docs(all_docs, "전 데이터 통합")
 
-print(sorted(set(d.metadata.get("source_file") for d in pdf_docs))[:20])
 
 # =====================================
 # [Step 2] 텍스트 분할
@@ -228,14 +298,6 @@ other_docs = csv_docs + image_docs
 other_chunks = text_splitter.split_documents(other_docs)
 
 chunks = pdf_chunks + other_chunks
-
-analyze_docs(chunks, "전처리 ON")
-
-print("pdf_docs:", len(pdf_docs))
-print("csv_docs:", len(csv_docs))
-
-print("all_docs:", len(all_docs))
-
 
 # =====================================
 # [Step 3] 임베딩 &  DB 만들기
@@ -250,7 +312,6 @@ def load_vectorstore():
         encode_kwargs={"normalize_embeddings": True},
     )
 
-    # ✅ Cloud에선 '반드시' 기존 DB만 로드 (생성 금지)
     if DEPLOY_MODE == "cloud":
         if not (os.path.exists(DB_PATH_PROCESSED) and os.listdir(DB_PATH_PROCESSED)):
             raise RuntimeError(
@@ -263,7 +324,6 @@ def load_vectorstore():
             collection_name="smart_factory_processed",
         )
 
-    # ✅ 로컬에서는 없으면 생성 허용
     if os.path.exists(DB_PATH_PROCESSED) and os.listdir(DB_PATH_PROCESSED):
         return Chroma(
             persist_directory=DB_PATH_PROCESSED,
@@ -272,7 +332,7 @@ def load_vectorstore():
         )
 
     vectorstore = Chroma.from_documents(
-        documents=chunks,  # 로컬에서만 생성
+        documents=chunks, 
         embedding=embeddings,
         collection_name="smart_factory_processed",
         persist_directory=DB_PATH_PROCESSED,
@@ -303,7 +363,6 @@ def format_source(meta: dict) -> str:
     if stype == "image":
         return f"{meta.get('source_file')} (image)"
 
-    # 혹시 누락 대비
     return f"{meta.get('source_file', 'unknown')}"
 
 def make_context(use_docs: list[Document]) -> str:
@@ -418,20 +477,16 @@ def pick_mode(pairs, query: str):
     """
     q = (query or "").lower()
 
-    # 1) CSV가 우선인 질문 패턴 (너가 겪는 케이스 방지용)
     csv_intent_terms = ["공급", "공급기업", "공급 기업", "기업", "업종", "제공", "전문 기술", "전문기술", "키워드"]
     if any(t in q for t in csv_intent_terms):
-        # 검색 결과에 csv 문서가 실제로 포함되어 있을 때만 csv 강제
         if any(d.metadata.get("source_type") == "csv" for d, _ in pairs):
             return "csv"
 
-    # 2) PDF가 우선인 질문 패턴 (사례/도입 절차 등)
     pdf_intent_terms = ["사례", "성공", "도입", "절차", "단계", "어떻게", "방법", "효과", "개념"]
     if any(t in q for t in pdf_intent_terms):
         if any(d.metadata.get("source_type") == "pdf" for d, _ in pairs):
             return "pdf"
 
-    # 3) fallback: score 기반(기존 로직 유지)
     scores = defaultdict(list)
     for d, s in pairs:
         t = d.metadata.get("source_type", "unknown")
@@ -442,32 +497,23 @@ def pick_mode(pairs, query: str):
         return "pdf"
 
     avg = {t: sum(v) / len(v) for t, v in scores.items()}
-    return min(avg, key=avg.get)  # distance 낮을수록 유사하다고 가정
+    return min(avg, key=avg.get) 
 
 def ask_rag(query: str, pairs: list, profile: dict | None = None, db_context: str = ""):
     profile = profile or {}
 
-    # pairs는 [(Document, score), ...]
-    # 1) 모드 결정
     mode = pick_mode(pairs, query)
-
-    # 2) 타입별로 문서 필터링
     use_docs = [d for d, _ in pairs if d.metadata.get("source_type") == mode]
 
-    # 3) fallback: 선택된 타입이 비었으면 전체 사용
     if not use_docs:
         use_docs = [d for d, _ in pairs]
 
-    # 4) context 생성 (출처 포함)
     context = make_context(use_docs)
     db_ctx = ""
     try:
         db_result = get_db_context(query, llm)
         st.session_state["db_result"] = db_result
-        print("✅ DB_AGENT error:", db_result.get("error"))
-        print("✅ DB_AGENT sql:", db_result.get("sql"))
-        print("✅ DB_AGENT rows:", len(db_result.get("rows", [])))
-
+   
         if db_result.get("error") is None and db_result.get("db_context_text"):
             db_ctx = (
                 "[DB 조회 결과]\n"
@@ -477,7 +523,6 @@ def ask_rag(query: str, pairs: list, profile: dict | None = None, db_context: st
                 + "\n(출처: PostgreSQL ragdb)"
         )
     except Exception as e:
-    # 디버깅용 (필요하면 print)
        print("DB_AGENT_ERROR:", e)
     
     if db_ctx:
@@ -485,10 +530,9 @@ def ask_rag(query: str, pairs: list, profile: dict | None = None, db_context: st
 
 
 
-    # 5) 프롬프트 선택
-    if db_ctx:  # ✅ DB가 있으면 PDF 프롬프트로 강제 (CSV 규칙 충돌 방지)
+    # 프롬프트 선택
+    if db_ctx:  
         prompt = build_prompt_pdf(query, context, profile)
-        print("✅ DB_CONTEXT_HEAD:", (db_context[:200] + "..."))
     else:
         if mode == "csv":
             prompt = build_prompt_csv(query, context)
@@ -497,7 +541,7 @@ def ask_rag(query: str, pairs: list, profile: dict | None = None, db_context: st
 
     print("DB_CTX_LEN:", len(db_ctx))
 
-    # 6) LLM 호출
+    # LLM 호출
     response = llm.invoke(prompt)
 
     return response.content, context, mode

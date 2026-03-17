@@ -15,7 +15,6 @@ def _simple_score(query: str, text: str) -> int:
 
 @st.cache_data
 def _load_pdf_texts():
-    # 가벼운 PDF 텍스트 로딩
     from pypdf import PdfReader
     pdf_texts = []
     for p in DOCS_DIR.rglob("*.pdf"):
@@ -41,7 +40,6 @@ def _load_csv_texts(max_rows=200):
     return csv_texts
 
 def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
-    # ✅ “벡터 검색” 대신 “키워드 점수”로 상위 문서 뽑기
     candidates = []
     for src, text in _load_pdf_texts():
         candidates.append((src, text, _simple_score(user_query, text)))
@@ -53,7 +51,6 @@ def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
     for src, text, score in candidates[:top_k]:
         if score <= 0:
             continue
-        # 너무 길면 잘라서 컨텍스트로
         results.append({"source": src, "snippet": text[:2000]})
     return results
 

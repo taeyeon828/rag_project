@@ -35,7 +35,7 @@ if "messages" not in st.session_state:
 if "started" not in st.session_state:
     st.session_state["started"] = False
 
-# 기업 프로필(세션 저장)
+# 기업 프로필
 if "profile" not in st.session_state:
     st.session_state["profile"] = {}
 
@@ -69,7 +69,6 @@ def company_intake_form():
         st.rerun()
 
 
-# company_intake_form() 호출
 if not st.session_state["started"]:
     company_intake_form()
     st.stop()
@@ -97,7 +96,6 @@ if user_text:
         with st.spinner("문서를 검색하고 답변을 생성 중..."):
             pairs = retrieve_context(user_text)
 
-            # ✅ DB Agent 실행
             from langchain_google_genai import ChatGoogleGenerativeAI
             @st.cache_resource
             def get_llm():

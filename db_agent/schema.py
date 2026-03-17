@@ -15,7 +15,7 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
     ORDER BY table_name, ordinal_position;
     """)
 
-    # PostgreSQL: PK (optional but nice)
+    # PostgreSQL: PK 
     pk_sql = text("""
     SELECT
       tc.table_name,
@@ -34,7 +34,6 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
         cols = conn.execute(cols_sql, {"tables": allowed}).mappings().all()
         pks  = conn.execute(pk_sql,  {"tables": allowed}).mappings().all()
 
-    # group
     by_table = {}
     for r in cols:
         by_table.setdefault(r["table_name"], []).append((r["column_name"], r["data_type"]))
@@ -43,7 +42,6 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
     for r in pks:
         pk_by_table.setdefault(r["table_name"], []).append(r["column_name"])
 
-    # render
     lines = []
     lines.append("You can query the following PostgreSQL tables/views (read-only).")
     for i, t in enumerate(allowed, 1):
