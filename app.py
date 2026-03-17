@@ -22,8 +22,8 @@ def get_engine():
 engine = get_engine()
 
 
-st.set_page_config(page_title="스마트공장 챗봇", layout="wide")
-st.title("스마트공장 도입 컨설턴트 AI")
+st.set_page_config(page_title="스마트공장 도입 가이드 시스템", layout="wide")
+st.title("스마트공장 도입 가이드 시스템")
 
 
 # =====================================
