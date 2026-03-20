@@ -14,8 +14,6 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
     ORDER BY table_name, ordinal_position
     """)
 
-    cols = conn.execute(cols_sql, {"tables": allowed}).mappings().all()
-
     # PostgreSQL: PK 
     pk_sql = text("""
     SELECT
