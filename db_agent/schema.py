@@ -12,24 +12,24 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
     WHERE table_schema = 'public'
       AND table_name IN ({",".join([f"'{t}'" for t in allowed])})
     """)
+
     # PostgreSQL: PK 
-    pk_sql = text("""
+    pk_sql = text(f"""
     SELECT
-      tc.table_name,
-      kcu.column_name
+    tc.table_name,
+    kcu.column_name
     FROM information_schema.table_constraints tc
     JOIN information_schema.key_column_usage kcu
-      ON tc.constraint_name = kcu.constraint_name
-     AND tc.table_schema = kcu.table_schema
+    ON tc.constraint_name = kcu.constraint_name
+    AND tc.table_schema = kcu.table_schema
     WHERE tc.table_schema='public'
-      AND tc.constraint_type='PRIMARY KEY'
-      AND tc.table_name = ANY(:tables)
+    AND tc.constraint_type='PRIMARY KEY'
+    AND tc.table_name IN ({",".join([f"'{t}'" for t in allowed])})
     ORDER BY tc.table_name, kcu.ordinal_position;
-    """)
-
+""")
     with engine.begin() as conn:
-        cols = conn.execute(cols_sql, {"tables": allowed}).mappings().all()
-        pks  = conn.execute(pk_sql,  {"tables": allowed}).mappings().all()
+        cols = conn.execute(cols_sql).mappings().all()
+        pks  = conn.execute(pk_sql).mappings().all()
 
     by_table = {}
     for r in cols:

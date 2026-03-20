@@ -42,7 +42,7 @@ def get_db_context(user_question: str, llm, engine=None, max_retry: int = 2) -> 
             raw_sql = out.get("sql", "")
             safe_sql = enforce_policy(raw_sql, allowed_tables=ALLOWED_TABLES, max_limit=200)
 
-            rows = run_sql(safe_sql)
+            rows = run_sql(safe_sql, engine=engine)
 
             return {
                 "sql": safe_sql,
