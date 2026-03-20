@@ -135,13 +135,13 @@ if user_text:
                 db_ctx = db_result["db_context_text"]
                 
             source_mode = decide_source_mode(user_text, db_ctx)
-            answer, used_context, mode = ask_rag(
+            answer = ask_rag(
                 user_text,
                 pairs,
                 profile=st.session_state.get("profile", {}),
                 db_context=db_ctx,
                 source_mode=source_mode,
-                )
+)
     
         st.markdown(answer)
         
