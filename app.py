@@ -135,6 +135,9 @@ if user_text:
                 db_ctx = db_result["db_context_text"]
                 
             source_mode = decide_source_mode(user_text, db_ctx)
+            st.write("DEBUG - db_ctx:", db_ctx)
+            st.write("DEBUG - db_ctx length:", len(db_ctx))
+            st.write("DEBUG - source_mode:", source_mode)
             answer = ask_rag(
                 user_text,
                 pairs,
