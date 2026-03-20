@@ -73,6 +73,28 @@ if not st.session_state["started"]:
     company_intake_form()
     st.stop()
 
+def decide_source_mode(query: str, db_ctx: str) -> str:
+    q = (query or "").lower()
+
+    db_terms = [
+        "db", "데이터베이스", "테이블", "컬럼", "행", "조회", "목록",
+        "건수", "개수", "몇 개", "몇건", "몇 건",
+        "평균", "합계", "최대", "최소", "순위", "상위", "하위",
+        "라인별", "설비별", "공정별",
+        "생산량", "불량률", "가동률", "재고", "수율"
+    ]
+    pdf_terms = ["사례", "도입", "절차", "단계", "방법", "효과", "개념", "설명"]
+    csv_terms = ["공급기업", "공급 기업", "제공 기술", "전문기술", "업종", "키워드"]
+
+    if any(term in q for term in db_terms) and db_ctx:
+        return "db"
+    if any(term in q for term in csv_terms):
+        return "csv"
+    if any(term in q for term in pdf_terms):
+        return "pdf"
+
+    return "pdf"
+
 # =====================================
 # 이전 메시지 출력
 # =====================================
@@ -112,13 +134,14 @@ if user_text:
             if db_result.get("error") is None and db_result.get("db_context_text"):
                 db_ctx = db_result["db_context_text"]
                 
-                
-            answer = ask_rag(
+            source_mode = decide_source_mode(user_text, db_ctx)
+            answer, used_context, mode = ask_rag(
                 user_text,
                 pairs,
                 profile=st.session_state.get("profile", {}),
                 db_context=db_ctx,
-                )
+                source_mode=source_mode,
+)
     
         st.markdown(answer)
         

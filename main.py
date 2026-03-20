@@ -480,6 +480,37 @@ def build_prompt_csv(query: str, context: str) -> str:
     발췌문: {context}
 """.strip()
 
+def is_db_query(query: str) -> bool:
+    q = (query or "").lower()
+
+    db_terms = [
+        "db", "데이터베이스", "테이블", "컬럼", "행", "조회", "목록",
+        "건수", "개수", "몇 개", "몇건", "몇 건",
+        "평균", "합계", "최대", "최소", "순위", "상위", "하위",
+        "라인별", "설비별", "공정별",
+        "생산량", "불량률", "가동률", "재고", "수율"
+    ]
+
+    return any(term in q for term in db_terms)
+
+def build_prompt_db(query: str, db_context: str) -> str:
+    return f"""
+    너는 데이터베이스 조회 결과를 근거로 답변하는 시스템이다.
+    
+    [출력 규칙]
+    1. 아래 DB 조회 결과만 사용하라.
+    2. PDF, CSV, 일반 상식, 추측을 추가하지 마라.
+    3. DB 결과에 없는 내용은 "DB 조회 결과에서 확인되지 않았습니다."라고 답하라.
+    4. 숫자, 항목명, 비교 결과를 명확히 제시하라.
+    5. 목록 조회는 불릿으로, 집계 결과는 숫자를 먼저 제시하라.
+    6. 마지막 문장에 반드시 "(출처: DB 조회 결과)"를 붙여라.
+    7. 문서 출처(pdf, csv 등)는 절대 쓰지 마라.
+    
+    [DB 조회 결과]
+    {db_context}
+    
+    질문: {query}
+""".strip()
 
 def pick_mode(pairs, query: str):
     """
@@ -510,47 +541,41 @@ def pick_mode(pairs, query: str):
     avg = {t: sum(v) / len(v) for t, v in scores.items()}
     return min(avg, key=avg.get) 
 
-def ask_rag(query: str, pairs: list, profile: dict | None = None, db_context: str = ""):
+def ask_rag(
+    query: str,
+    pairs: list,
+    profile: dict | None = None,
+    db_context: str = "",
+    source_mode: str | None = None,
+):
     profile = profile or {}
+    db_ctx = db_context or ""
 
-    mode = pick_mode(pairs, query)
-    use_docs = [d for d, _ in pairs if d.metadata.get("source_type") == mode]
+    if source_mode is None:
+        if db_ctx and is_db_query(query):
+            source_mode = "db"
+        else:
+            source_mode = pick_mode(pairs, query)  # pdf or csv
+
+    if source_mode == "db":
+        if db_ctx:
+            prompt = build_prompt_db(query, db_ctx)
+            response = llm.invoke(prompt)
+            return response.content, db_ctx, "db"
+        else:
+            return "DB 조회 결과를 찾지 못했습니다.", "", "db"
+
+    use_docs = [d for d, _ in pairs if d.metadata.get("source_type") == source_mode]
 
     if not use_docs:
         use_docs = [d for d, _ in pairs]
 
     context = make_context(use_docs)
-    db_ctx = ""
-    try:
-        db_result = get_db_context(query, llm)
-        st.session_state["db_result"] = db_result
-   
-        if db_result.get("error") is None and db_result.get("db_context_text"):
-            db_ctx = (
-                "[DB 조회 결과]\n"
-                + db_result["db_context_text"]
-                + "\n\n[SQL]\n"
-                + db_result.get("sql", "")
-                + "\n(출처: PostgreSQL ragdb)"
-        )
-    except Exception as e:
-       print("DB_AGENT_ERROR:", e)
-    
-    if db_ctx:
-        context += "\n\n" + db_ctx
 
-    # 프롬프트 선택
-    if db_ctx:  
-        prompt = build_prompt_pdf(query, context, profile)
+    if source_mode == "csv":
+        prompt = build_prompt_csv(query, context)
     else:
-        if mode == "csv":
-            prompt = build_prompt_csv(query, context)
-        else:
-            prompt = build_prompt_pdf(query, context, profile)
+        prompt = build_prompt_pdf(query, context, profile)
 
-    print("DB_CTX_LEN:", len(db_ctx))
-
-    # LLM 호출
     response = llm.invoke(prompt)
-
-    return response.content, context, mode
+    return response.content, context, source_mode
