@@ -1,50 +1,37 @@
 from typing import Iterable
-from sqlalchemy import text
+from sqlalchemy import inspect
 
 def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
-    allowed = list(allowed_tables)
+    allowed = sorted(set(allowed_tables))
     if not allowed:
         return "No tables are allowed."
-    
-    cols_sql = text(f"""
-    SELECT table_name, column_name, data_type
-    FROM information_schema.columns
-    WHERE table_schema = 'public'
-      AND table_name IN ({",".join([f"'{t}'" for t in allowed])})
-    """)
 
-    # PostgreSQL: PK 
-    pk_sql = text(f"""
-    SELECT
-    tc.table_name,
-    kcu.column_name
-    FROM information_schema.table_constraints tc
-    JOIN information_schema.key_column_usage kcu
-    ON tc.constraint_name = kcu.constraint_name
-    AND tc.table_schema = kcu.table_schema
-    WHERE tc.table_schema='public'
-    AND tc.constraint_type='PRIMARY KEY'
-    AND tc.table_name IN ({",".join([f"'{t}'" for t in allowed])})
-    ORDER BY tc.table_name, kcu.ordinal_position;
-""")
-    with engine.begin() as conn:
-        cols = conn.execute(cols_sql).mappings().all()
-        pks  = conn.execute(pk_sql).mappings().all()
-
-    by_table = {}
-    for r in cols:
-        by_table.setdefault(r["table_name"], []).append((r["column_name"], r["data_type"]))
-
-    pk_by_table = {}
-    for r in pks:
-        pk_by_table.setdefault(r["table_name"], []).append(r["column_name"])
+    inspector = inspect(engine)
 
     lines = []
     lines.append("You can query the following PostgreSQL tables/views (read-only).")
-    for i, t in enumerate(allowed, 1):
-        lines.append(f"\n{i}) {t}")
-        for col, dtype in by_table.get(t, []):
-            lines.append(f"- {col} ({dtype})")
-        if t in pk_by_table:
-            lines.append(f"Primary Key: ({', '.join(pk_by_table[t])})")
+
+    for i, table_name in enumerate(allowed, 1):
+        lines.append(f"\n{i}) {table_name}")
+
+        try:
+            columns = inspector.get_columns(table_name, schema="public")
+            pk = inspector.get_pk_constraint(table_name, schema="public")
+        except Exception as e:
+            lines.append(f"- [schema read error] {e}")
+            continue
+
+        if not columns:
+            lines.append("- [warning] table not found or no visible columns")
+            continue
+
+        for col in columns:
+            col_name = col.get("name", "unknown")
+            col_type = str(col.get("type", "unknown"))
+            lines.append(f"- {col_name} ({col_type})")
+
+        pk_cols = pk.get("constrained_columns") if pk else None
+        if pk_cols:
+            lines.append(f"Primary Key: ({', '.join(pk_cols)})")
+
     return "\n".join(lines)
