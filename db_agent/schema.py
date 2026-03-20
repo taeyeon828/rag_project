@@ -6,14 +6,12 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
     if not allowed:
         return "No tables are allowed."
     
-    cols_sql = text("""
+    cols_sql = text(f"""
     SELECT table_name, column_name, data_type
     FROM information_schema.columns
     WHERE table_schema = 'public'
-    AND table_name = ANY(:tables)
-    ORDER BY table_name, ordinal_position
+      AND table_name IN ({",".join([f"'{t}'" for t in allowed])})
     """)
-
     # PostgreSQL: PK 
     pk_sql = text("""
     SELECT
