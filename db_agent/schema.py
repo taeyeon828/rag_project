@@ -2,7 +2,7 @@ from typing import Iterable
 from sqlalchemy import text
 
 def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
-    allowed = sorted(set(allowed_tables))
+    allowed = list(allowed_tables)
     if not allowed:
         return "No tables are allowed."
     
