@@ -141,7 +141,7 @@ if user_text:
                 profile=st.session_state.get("profile", {}),
                 db_context=db_ctx,
                 source_mode=source_mode,
-)
+                )
     
         st.markdown(answer)
         

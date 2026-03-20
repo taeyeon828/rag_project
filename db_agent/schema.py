@@ -5,15 +5,16 @@ def build_schema_context(engine, allowed_tables: Iterable[str]) -> str:
     allowed = sorted(set(allowed_tables))
     if not allowed:
         return "No tables are allowed."
-
-    # PostgreSQL: columns
+    
     cols_sql = text("""
     SELECT table_name, column_name, data_type
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name = ANY(:tables)
-    ORDER BY table_name, ordinal_position;
+    AND table_name = ANY(:tables)
+    ORDER BY table_name, ordinal_position
     """)
+
+    cols = conn.execute(cols_sql, {"tables": allowed}).mappings().all()
 
     # PostgreSQL: PK 
     pk_sql = text("""
