@@ -95,7 +95,7 @@ def _load_csv_texts(max_rows: int = 200):
     return csv_texts
 
 
-def retrieve_context(user_query: str, top_k: int = 5) -> list[dict]:
+def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
     candidates = []
     q = expand_query((user_query or "").lower())
 
@@ -223,15 +223,6 @@ def build_prompt_pdf(query: str, context: str, profile: dict | None = None) -> s
     [출처 표기 규칙]
     - 각 문장 또는 각 불릿의 끝에 반드시 출처를 괄호로 표기한다.
     - 출처 형식은 다음과 같이 작성한다: (출처: 파일명) 또는 (출처: 파일명, p.페이지번호)
-    - DB 조회 결과를 사용한 문장은 다음과 같이 표기한다: (출처: DB 조회 결과)
-    - 출처를 확인할 수 없는 내용은 작성하지 않는다.
-    - 하나의 문장에 여러 근거가 있으면 가장 직접적인 출처 1개만 표기한다.
-
-    [답변 형식]
-    - 실제 컨설팅 답변처럼 실용적으로 작성 
-    - 필요 시 불릿 또는 번호 사용 가능 
-    - 출처를 직접 꾸며내지 말 것 
-    - 모든 문장 끝 또는 모든 불릿 끝에 반드시 출처 표기 
 
     답변을 마친 후, 아래 조건을 만족하는 "다음에 할 수 있는 질문 예시"를 2~4개 제안해.
 
