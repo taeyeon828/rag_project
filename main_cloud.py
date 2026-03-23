@@ -99,7 +99,7 @@ def _load_csv_texts(max_rows: int = 200):
     return csv_texts
 
 
-def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
+def retrieve_context(user_query: str, top_k: int = 5) -> list[dict]:
     candidates = []
     q = expand_query((user_query or "").lower())
 
