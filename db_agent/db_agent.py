@@ -8,11 +8,10 @@ from db_agent.sql_generator import build_prompt, llm_generate_sql
 from sqlalchemy import create_engine
 
 ALLOWED_TABLES = {
-  "batch_production",
-  "production_daily",
-  "qc_inspection",
-  "kpi_production_line_daily",
-  "kpi_product_quality_daily",
+    "batch_material_usage",
+    "batch_production", 
+    "production_daily",
+    "qc_inspection",
 }
 
 def format_rows_as_text(rows: list[dict], max_rows: int = 20) -> str:

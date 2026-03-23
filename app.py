@@ -25,6 +25,14 @@ engine = get_engine()
 st.set_page_config(page_title="스마트공장 도입 가이드 시스템", layout="wide")
 st.title("스마트공장 도입 가이드 시스템")
 
+from sqlalchemy import text
+
+with engine.connect() as conn:
+    row = conn.execute(text("SELECT current_database(), current_schema(), current_user")).fetchone()
+    st.write("DEBUG - current_database:", row[0])
+    st.write("DEBUG - current_schema:", row[1])
+    st.write("DEBUG - current_user:", row[2])
+
 
 # =====================================
 # 초기화
@@ -132,7 +140,7 @@ if user_text:
             st.write("DEBUG - db_result:", db_result)
             st.write("DEBUG - db_result error:", db_result.get("error"))
             st.write("DEBUG - db_result sql:", db_result.get("sql"))
-            
+
             st.session_state["db_result"] = db_result
             db_ctx = ""
             if db_result.get("error") is None and db_result.get("db_context_text"):
