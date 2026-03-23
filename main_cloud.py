@@ -61,7 +61,7 @@ def _load_csv_texts(max_rows: int = 200):
     return csv_texts
 
 
-def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
+def retrieve_context(user_query: str, top_k: int = 2) -> list[dict]:
     candidates = []
 
     for item in _load_pdf_texts():
@@ -82,7 +82,7 @@ def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
             {
                 "source_type": item["source_type"],
                 "source": item["source"],
-                "text": item["text"][:2000],
+                "text": item["text"][:1200],
             }
         )
     return results
@@ -249,8 +249,12 @@ def ask_rag(
     if source_mode == "db":
         if db_ctx:
             prompt = build_prompt_db(query, db_ctx)
-            response = llm.invoke(prompt)
-            return response.content
+            try:
+                response = llm.invoke(prompt)
+                return response.content
+            except Exception as e:
+                print("LLM_DB_ERROR:", str(e))
+                return "DB 조회 결과는 확인했지만 답변 생성 중 오류가 발생했습니다."
         return "DB 조회 결과를 찾지 못했습니다."
 
     use_docs = [item for item in pairs if item.get("source_type") == source_mode]
@@ -264,5 +268,9 @@ def ask_rag(
     else:
         prompt = build_prompt_pdf(query, context, profile)
 
-    response = llm.invoke(prompt)
-    return response.content
+    try:
+        response = llm.invoke(prompt)
+        return response.content
+    except Exception as e:
+        print("LLM_INVOKE_ERROR:", str(e))
+        return "현재 답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
