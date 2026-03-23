@@ -9,9 +9,28 @@ DOCS_DIR = Path("data")
 
 
 def _simple_score(query: str, text: str) -> int:
-    q = re.findall(r"[0-9A-Za-z가-힣]+", (query or "").lower())
+    q_tokens = re.findall(r"[0-9A-Za-z가-힣]+", (query or "").lower())
     t = (text or "").lower()
-    return sum(1 for tok in q if tok in t)
+
+    score = 0
+    for tok in q_tokens:
+        if tok in t:
+            score += 1
+    return score
+
+def expand_query(q: str) -> str:
+    q = (q or "").lower()
+
+    if "식품제조업" in q:
+        q += " 식품 식품가공 식품 및 음료"
+
+    if "공급기업" in q:
+        q += " 전문분야 전문업종 공급기업"
+
+    if "스마트공장" in q:
+        q += " mes erp 자동화 모니터링"
+
+    return q
 
 
 @st.cache_data
@@ -63,35 +82,29 @@ def _load_csv_texts(max_rows: int = 200):
 
 def retrieve_context(user_query: str, top_k: int = 2) -> list[dict]:
     candidates = []
-    q = (user_query or "").lower()
+    q = expand_query((user_query or "").lower())
 
-    is_supplier_query = any(term in q for term in [
-        "공급기업", "공급 기업", "전문분야", "전문업종", "제공 기술", "전문기술", "업종"
-    ])
+    is_supplier_query = any(term in q for term in ["공급기업", "공급 기업", "전문분야", "전문업종", "제공 기술", "전문기술", "업종"])
 
-    # 1. 공급기업 질문 → supply_company.csv만
     if is_supplier_query:
         for item in _load_csv_texts():
             if "supply_company" in item["source"]:
-                score = _simple_score(user_query, item["text"])
+                score = _simple_score(q, item["text"])
                 candidates.append({**item, "score": score})
 
-    # 2. 나머지 → PDF 중심 + 필요시 CSV
     else:
         for item in _load_pdf_texts():
-            score = _simple_score(user_query, item["text"])
+            score = _simple_score(q, item["text"])
             candidates.append({**item, "score": score})
 
         for item in _load_csv_texts():
-            score = _simple_score(user_query, item["text"])
+            score = _simple_score(q, item["text"])
             candidates.append({**item, "score": score})
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
     results = []
     for item in candidates[:top_k]:
-        if item["score"] <= 0:
-            continue
         results.append(
             {
                 "source_type": item["source_type"],
@@ -99,6 +112,19 @@ def retrieve_context(user_query: str, top_k: int = 2) -> list[dict]:
                 "text": item["text"][:1200],
             }
         )
+
+    if not results and is_supplier_query:
+        for item in _load_csv_texts():
+            if "supply_company" in item["source"]:
+                results.append(
+                    {
+                        "source_type": item["source_type"],
+                        "source": item["source"],
+                        "text": item["text"][:1200],
+                    }
+                )
+                break
+
     return results
 
 def pick_mode(query: str, pairs: list[dict]) -> str:
@@ -222,9 +248,13 @@ def build_prompt_csv(query: str, context: str) -> str:
     [출력 규칙]
     1. 아래 CSV 발췌문에서 확인되는 정보만 사용하라.
     2. 공급기업, 업종, 제공 기술, 키워드를 중심으로 정리하라.
-    3. 없는 정보는 추측하지 말고 "제공된 CSV 데이터에서 확인되지 않았습니다."라고 답하라.
-    4. 가능하면 표나 불릿으로 정리하라.
-    5. 마지막에는 사용한 데이터 출처를 간단히 언급하라.
+    3. 질문의 업종 표현과 CSV의 업종 표현이 완전히 같지 않아도, 의미상 유사하면 관련 정보로 인정하라.
+       예: "식품제조업", "식품", "식품가공", "식품 및 음료"는 유사 범주로 볼 수 있다.
+    4. 공급기업명이 보이면 기업명을 먼저 제시하고, 그 다음 전문 기술/전문 업종을 정리하라.
+    5. 없는 정보는 추측하지 말고 "제공된 CSV 데이터에서 확인되지 않았습니다."라고 답하라.
+    6. 가능하면 불릿으로 정리하라.
+    7. 마지막에는 사용한 데이터 출처를 간단히 언급하라.
+
     
     [CSV 발췌문]
     {context}
