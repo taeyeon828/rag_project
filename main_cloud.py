@@ -65,8 +65,20 @@ def _load_pdf_texts():
 def _load_csv_texts(max_rows: int = 200):
     csv_texts = []
     for p in DOCS_DIR.rglob("*.csv"):
+        df = None
+
+        for enc in ["utf-8", "utf-8-sig", "cp949", "euc-kr"]:
+            try:
+                df = pd.read_csv(p, encoding=enc)
+                break
+            except Exception:
+                continue
+
+        if df is None:
+            print(f"CSV_LOAD_ERROR: failed to read {p}")
+            continue
+
         try:
-            df = pd.read_csv(p)
             df_head = df.head(max_rows)
             csv_texts.append(
                 {
@@ -75,8 +87,11 @@ def _load_csv_texts(max_rows: int = 200):
                     "text": df_head.to_csv(index=False),
                 }
             )
-        except Exception:
-            pass
+            print(f"CSV_LOADED: {p} / rows={len(df_head)}")
+        except Exception as e:
+            print(f"CSV_PROCESS_ERROR: {p} / {e}")
+            continue
+
     return csv_texts
 
 
