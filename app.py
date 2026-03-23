@@ -79,19 +79,21 @@ if not st.session_state["started"]:
 def decide_source_mode(query: str, db_ctx: str) -> str:
     q = (query or "").lower()
 
+    csv_terms = [
+        "공급기업", "공급 기업", "전문분야", "전문업종", "제공 기술",
+        "전문기술", "업종", "키워드", "기업"
+    ]
     pdf_terms = [
-        "사례", "도입", "절차", "단계", "방법", "효과", "개념", "설명",
+        "사례", "우수사례", "도입 사례", "구축 사례", "성공 사례", "동종업계",
+        "도입", "절차", "단계", "방법", "효과", "개념", "설명",
         "왜", "어떻게", "무엇", "장점", "단점", "시작", "준비"
     ]
-    csv_terms = [
-        "공급기업", "공급 기업", "제공 기술", "전문기술", "업종", "키워드", "기업"
-    ]
-
-    if any(term in q for term in pdf_terms):
-        return "pdf"
 
     if any(term in q for term in csv_terms):
         return "csv"
+
+    if any(term in q for term in pdf_terms):
+        return "pdf"
 
     if db_ctx:
         return "db"
