@@ -53,7 +53,7 @@ def _load_pdf_texts():
                     {
                         "source_type": "pdf",
                         "source": str(p),
-                        "text": full_text[:12000],
+                        "text": full_text[:4000],
                     }
                 )
         except Exception:
@@ -95,7 +95,7 @@ def _load_csv_texts(max_rows: int = 200):
     return csv_texts
 
 
-def retrieve_context(user_query: str, top_k: int = 2) -> list[dict]:
+def retrieve_context(user_query: str, top_k: int = 5) -> list[dict]:
     candidates = []
     q = expand_query((user_query or "").lower())
 
