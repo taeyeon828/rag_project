@@ -15,7 +15,12 @@ def _simple_score(query: str, text: str) -> int:
     score = 0
     for tok in q_tokens:
         if tok in t:
-            score += 1
+            if tok in ["사례", "우수사례", "성공", "성공사례"]:
+                score += 3
+            elif tok in ["도입", "절차", "방법"]:
+                score += 2
+            else:
+                score += 1
     return score
 
 def expand_query(q: str) -> str:
@@ -41,25 +46,24 @@ def _load_pdf_texts():
     for p in DOCS_DIR.rglob("*.pdf"):
         try:
             reader = PdfReader(str(p))
-            pages = []
+
             for page_idx, page in enumerate(reader.pages, start=1):
                 page_text = (page.extract_text() or "").strip()
-                if page_text:
-                    pages.append((page_idx, page_text))
 
-            if pages:
-                full_text = "\n".join(text for _, text in pages)
-                pdf_texts.append(
-                    {
-                        "source_type": "pdf",
-                        "source": str(p),
-                        "text": full_text[:1200],
-                    }
-                )
+                if page_text:
+                    pdf_texts.append(
+                        {
+                            "source_type": "pdf",
+                            "source": str(p),
+                            "page": page_idx,
+                            "text": page_text[:1000],
+                        }
+                    )
+
         except Exception:
             pass
-    return pdf_texts
 
+    return pdf_texts
 
 @st.cache_data
 def _load_csv_texts(max_rows: int = 200):
@@ -99,7 +103,7 @@ def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
     candidates = []
     q = expand_query((user_query or "").lower())
 
-    is_supplier_query = any(term in q for term in ["공급기업", "공급 기업", "전문분야", "전문업종", "제공 기술", "전문기술", "업종"])
+    is_supplier_query = any(term in q for term in ["공급기업", "공급 기업", "전문분야", "전문업종", "제공 기술", "전문기술"])
 
     if is_supplier_query:
         for item in _load_csv_texts():
@@ -141,7 +145,7 @@ def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
 def pick_mode(query: str, pairs: list[dict]) -> str:
     q = (query or "").lower()
 
-    csv_terms = ["공급기업", "공급 기업", "업종", "전문기술", "제공 기술", "키워드", "기업"]
+    csv_terms = ["공급기업", "공급 기업", "전문기술", "제공 기술", "키워드"]
     pdf_terms = ["사례", "도입", "절차", "단계", "방법", "효과", "개념", "설명"]
 
     if any(term in q for term in csv_terms):
@@ -159,11 +163,11 @@ def pick_mode(query: str, pairs: list[dict]) -> str:
     return "pdf"
 
 
-def make_context(items: list[dict]) -> str:
+def make_context(items: list[dict], per_doc_limit: int = 800) -> str:
     parts = []
     for item in items:
         src = item.get("source", "unknown")
-        text = item.get("text", "").strip()
+        text = item.get("text", "").strip()[:per_doc_limit]
         if text:
             parts.append(f"{text}\n(출처: {src})")
     return "\n\n---\n\n".join(parts)
@@ -197,9 +201,11 @@ def build_prompt_pdf(query: str, context: str, profile: dict | None = None) -> s
     
     return f"""
     너는 중소기업을 위한 스마트공장 도입 가이드 AI야.
-    답변은 위 기업 정보에 맞춰 우선순위/적용 포인트를 조정하되, 사실 근거는 제공된 문서 발췌문만 사용한다.
-    근거가 부족하면 '문서에서 해당 내용을 찾지 못했다' 또는 '제공된 통계에서 확인되지 않았다.'고 말해.
-    사용자는 스마트공장을 처음 도입하려는 중소기업 사장이라고 가정해. 
+    - 답변은 위 기업 정보에 맞춰 우선순위/적용 포인트를 조정하되, 사실 근거는 제공된 문서 발췌문만 사용한다.
+    - 근거가 부족하면 '문서에서 해당 내용을 찾지 못했다'고 말해.
+    - 이 답변은 PDF 발췌문만 근거로 작성하라.
+    - CSV 데이터나 DB 조회 결과를 사용하지 않았다면 절대 언급하지 마라.
+    - 사용자는 스마트공장을 처음 도입하려는 중소기업 사장이라고 가정해. 
 
     [사용자 기업 정보]
     - 업종: {industry}
@@ -221,8 +227,8 @@ def build_prompt_pdf(query: str, context: str, profile: dict | None = None) -> s
        - 기술 설명보다 ‘구조· 프로세스 변화’를 우선 설명한다.
 
     [출처 표기 규칙]
-    - 각 문장 또는 각 불릿의 끝에 반드시 출처를 괄호로 표기한다.
-    - 출처 형식은 다음과 같이 작성한다: (출처: 파일명) 또는 (출처: 파일명, p.페이지번호)
+    - 출처 형식은 다음과 같이 작성한다: (출처: 파일명)
+    - 페이지번호는 제공된 경우에만 표기하라.
 
     답변을 마친 후, 아래 조건을 만족하는 "다음에 할 수 있는 질문 예시"를 2~4개 제안해.
 
@@ -245,7 +251,7 @@ def build_prompt_pdf(query: str, context: str, profile: dict | None = None) -> s
 def build_prompt_csv(query: str, context: str) -> str:
     return f"""
     
-    너는 CSV 데이터에 근거해서만 답하는 시스템이다.
+    너는 CSV 데이터에 근거해서 답하는 시스템이다.
     
     [출력 규칙]
     1. 아래 CSV 발췌문에서 확인되는 정보만 사용하라.
@@ -319,7 +325,13 @@ def ask_rag(
 
     try:
         response = llm.invoke(prompt)
-        return response.content
+        
+        if isinstance(response, str):
+            return response
+        elif hasattr(response, "content"):
+            return str(response.content)
+        else:
+            return str(response)
     except Exception as e:
         print("LLM_INVOKE_ERROR:", str(e))
         return "현재 답변 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요."
