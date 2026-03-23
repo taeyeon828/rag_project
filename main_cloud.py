@@ -63,14 +63,31 @@ def _load_csv_texts(max_rows: int = 200):
 
 def retrieve_context(user_query: str, top_k: int = 2) -> list[dict]:
     candidates = []
+    q = (user_query or "").lower()
 
-    for item in _load_pdf_texts():
-        score = _simple_score(user_query, item["text"])
-        candidates.append({**item, "score": score})
+    is_supplier_query = any(term in q for term in ["공급기업", "기업", "업종", "전문기술", "적용 가능"])
+    is_case_query = any(term in q for term in ["사례", "도입", "구축", "성공", "우수"])
 
-    for item in _load_csv_texts():
-        score = _simple_score(user_query, item["text"])
-        candidates.append({**item, "score": score})
+    if is_supplier_query:
+        for item in _load_csv_texts():
+            if "supply_company" in item["source"]:
+                score = _simple_score(user_query, item["text"])
+                candidates.append({**item, "score": score})
+
+    elif is_case_query:
+        for item in _load_csv_texts():
+            if "best_company" in item["source"]:
+                score = _simple_score(user_query, item["text"])
+                candidates.append({**item, "score": score})
+
+    else:
+        for item in _load_pdf_texts():
+            score = _simple_score(user_query, item["text"])
+            candidates.append({**item, "score": score})
+
+        for item in _load_csv_texts():
+            score = _simple_score(user_query, item["text"])
+            candidates.append({**item, "score": score})
 
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
@@ -78,15 +95,13 @@ def retrieve_context(user_query: str, top_k: int = 2) -> list[dict]:
     for item in candidates[:top_k]:
         if item["score"] <= 0:
             continue
-        results.append(
-            {
-                "source_type": item["source_type"],
-                "source": item["source"],
-                "text": item["text"][:1200],
-            }
-        )
-    return results
+        results.append({
+            "source_type": item["source_type"],
+            "source": item["source"],
+            "text": item["text"][:1200],
+        })
 
+    return results
 
 def pick_mode(query: str, pairs: list[dict]) -> str:
     q = (query or "").lower()
