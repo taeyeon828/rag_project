@@ -88,18 +88,6 @@ def retrieve_context(user_query: str, top_k: int = 3) -> list[dict]:
     return results
 
 
-def is_db_query(query: str) -> bool:
-    q = (query or "").lower()
-    db_terms = [
-        "db", "데이터베이스", "테이블", "컬럼", "행", "조회", "목록",
-        "건수", "개수", "몇 개", "몇건", "몇 건",
-        "평균", "합계", "최대", "최소", "순위", "상위", "하위",
-        "라인별", "설비별", "공정별",
-        "생산량", "불량률", "가동률", "재고", "수율",
-    ]
-    return any(term in q for term in db_terms)
-
-
 def pick_mode(query: str, pairs: list[dict]) -> str:
     q = (query or "").lower()
 
@@ -253,7 +241,7 @@ def ask_rag(
     llm = get_llm()
 
     if source_mode is None:
-        if db_ctx and is_db_query(query):
+        if db_ctx:
             source_mode = "db"
         else:
             source_mode = pick_mode(query, pairs)

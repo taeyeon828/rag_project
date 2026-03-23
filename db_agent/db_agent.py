@@ -12,6 +12,8 @@ ALLOWED_TABLES = {
     "batch_production", 
     "production_daily",
     "qc_inspection",
+    "production_master",
+    "raw_material_lot",
 }
 
 def format_rows_as_text(rows: list[dict], max_rows: int = 20) -> str:

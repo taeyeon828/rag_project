@@ -7,32 +7,30 @@ else:
     from main import ask_rag, retrieve_context 
 
 import streamlit as st
-import pandas as pd
 from sqlalchemy import create_engine
 from db_agent.db_agent import get_db_context
 from dotenv import load_dotenv
+from langchain_google_genai import ChatGoogleGenerativeAI
 if DEPLOY_MODE != "cloud":
     load_dotenv()
 
 @st.cache_resource
 def get_engine():
-    from sqlalchemy import create_engine
-    return create_engine(st.secrets["DB_URL"])
+    return create_engine(st.secrets["DB_URL"]) 
+
+def get_llm():
+    return ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        google_api_key=st.secrets["GEMINI_API_KEY"],
+        temperature=0.2,
+        )
+    
 
 engine = get_engine()
 
 
 st.set_page_config(page_title="스마트공장 도입 가이드 시스템", layout="wide")
 st.title("스마트공장 도입 가이드 시스템")
-
-from sqlalchemy import text
-
-with engine.connect() as conn:
-    row = conn.execute(text("SELECT current_database(), current_schema(), current_user")).fetchone()
-    st.write("DEBUG - current_database:", row[0])
-    st.write("DEBUG - current_schema:", row[1])
-    st.write("DEBUG - current_user:", row[2])
-
 
 # =====================================
 # 초기화
@@ -46,9 +44,6 @@ if "started" not in st.session_state:
 # 기업 프로필
 if "profile" not in st.session_state:
     st.session_state["profile"] = {}
-
-if "db_context" not in st.session_state:
-    st.session_state["db_context"] = ""
 
 # =====================================
 # 사용자 정보 입력
@@ -84,18 +79,12 @@ if not st.session_state["started"]:
 def decide_source_mode(query: str, db_ctx: str) -> str:
     q = (query or "").lower()
 
-    db_terms = [
-        "db", "데이터베이스", "테이블", "컬럼", "행", "조회", "목록",
-        "건수", "개수", "몇 개", "몇건", "몇 건",
-        "평균", "합계", "최대", "최소", "순위", "상위", "하위",
-        "라인별", "설비별", "공정별",
-        "생산량", "불량률", "가동률", "재고", "수율"
-    ]
-    pdf_terms = ["사례", "도입", "절차", "단계", "방법", "효과", "개념", "설명"]
-    csv_terms = ["공급기업", "공급 기업", "제공 기술", "전문기술", "업종", "키워드"]
-
-    if any(term in q for term in db_terms) and db_ctx:
+    if db_ctx:
         return "db"
+
+    csv_terms = ["공급기업", "공급 기업", "제공 기술", "전문기술", "업종", "키워드", "기업"]
+    pdf_terms = ["사례", "도입", "절차", "단계", "방법", "효과", "개념", "설명"]
+
     if any(term in q for term in csv_terms):
         return "csv"
     if any(term in q for term in pdf_terms):
@@ -125,31 +114,16 @@ if user_text:
     with st.chat_message("assistant"):
         with st.spinner("문서를 검색하고 답변을 생성 중..."):
             pairs = retrieve_context(user_text)
-
-            from langchain_google_genai import ChatGoogleGenerativeAI
-            @st.cache_resource
-            def get_llm():
-                return ChatGoogleGenerativeAI(
-                    model="gemini-2.5-flash",
-                    google_api_key=st.secrets["GEMINI_API_KEY"],
-                    temperature=0.2,
-                    )
             llm = get_llm()
 
             db_result = get_db_context(user_text, llm, engine)
-            st.write("DEBUG - db_result:", db_result)
-            st.write("DEBUG - db_result error:", db_result.get("error"))
-            st.write("DEBUG - db_result sql:", db_result.get("sql"))
 
             st.session_state["db_result"] = db_result
             db_ctx = ""
             if db_result.get("error") is None and db_result.get("db_context_text"):
-                db_ctx = db_result["db_context_text"]
-                
+                db_ctx = db_result["db_context_text"]     
+
             source_mode = decide_source_mode(user_text, db_ctx)
-            st.write("DEBUG - db_ctx:", db_ctx)
-            st.write("DEBUG - db_ctx length:", len(db_ctx))
-            st.write("DEBUG - source_mode:", source_mode)
             answer = ask_rag(
                 user_text,
                 pairs,
