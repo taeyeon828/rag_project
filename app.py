@@ -19,11 +19,17 @@ def get_engine():
     return create_engine(st.secrets["DB_URL"]) 
 
 def get_llm():
+    api_key = st.secrets.get("GEMINI_API_KEY")
+
+    if not api_key:
+        st.error("❌ GEMINI_API_KEY가 설정되지 않았습니다. (Streamlit secrets 확인 필요)")
+        st.stop()
+
     return ChatGoogleGenerativeAI(
         model="gemini-2.5-flash",
-        google_api_key=st.secrets["GEMINI_API_KEY"],
+        google_api_key=api_key,
         temperature=0.2,
-        )
+    )
     
 
 engine = get_engine()
