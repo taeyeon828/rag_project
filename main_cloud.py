@@ -53,7 +53,7 @@ def _load_pdf_texts():
                     {
                         "source_type": "pdf",
                         "source": str(p),
-                        "text": full_text[:4000],
+                        "text": full_text[:1200],
                     }
                 )
         except Exception:
@@ -112,10 +112,6 @@ def retrieve_context(user_query: str, top_k: int = 5) -> list[dict]:
             score = _simple_score(q, item["text"])
             candidates.append({**item, "score": score})
 
-        for item in _load_csv_texts():
-            score = _simple_score(q, item["text"])
-            candidates.append({**item, "score": score})
-
     candidates.sort(key=lambda x: x["score"], reverse=True)
 
     results = []
@@ -124,7 +120,7 @@ def retrieve_context(user_query: str, top_k: int = 5) -> list[dict]:
             {
                 "source_type": item["source_type"],
                 "source": item["source"],
-                "text": item["text"][:1200],
+                "text": item["text"][:700],
             }
         )
 
@@ -135,7 +131,7 @@ def retrieve_context(user_query: str, top_k: int = 5) -> list[dict]:
                     {
                         "source_type": item["source_type"],
                         "source": item["source"],
-                        "text": item["text"][:1200],
+                        "text": item["text"][:700],
                     }
                 )
                 break
@@ -321,8 +317,12 @@ def ask_rag(
 
     context = make_context(use_docs)
 
+    if source_mode == "pdf":
+        context = context[:1800]
+
     if source_mode == "csv":
         prompt = build_prompt_csv(query, context)
+        
     else:
         prompt = build_prompt_pdf(query, context, profile)
 
