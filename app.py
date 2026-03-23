@@ -129,6 +129,10 @@ if user_text:
             llm = get_llm()
 
             db_result = get_db_context(user_text, llm, engine)
+            st.write("DEBUG - db_result:", db_result)
+            st.write("DEBUG - db_result error:", db_result.get("error"))
+            st.write("DEBUG - db_result sql:", db_result.get("sql"))
+            
             st.session_state["db_result"] = db_result
             db_ctx = ""
             if db_result.get("error") is None and db_result.get("db_context_text"):
